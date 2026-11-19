@@ -1,0 +1,17 @@
+.DS_Store
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+/xtool
+
+# Third-party press photos: regenerate with tools/fetch_photos.sh
+.venv/
+/Sources/EinbuergerungTrainer/Resources/img_55.png
+/Sources/EinbuergerungTrainer/Resources/img_70.png
+/Sources/EinbuergerungTrainer/Resources/img_181.png
+/Sources/EinbuergerungTrainer/Resources/img_216.png
+/Sources/EinbuergerungTrainer/Resources/img_235.png

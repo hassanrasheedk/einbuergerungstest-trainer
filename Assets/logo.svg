@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Königsblau ground -->
+  <rect width="1024" height="1024" fill="#2348C9"/>
+
+  <g transform="translate(-36 56)">
+  <!-- the tick, written in gold ink -->
+  <path d="M 214 560 L 384 728 L 614 474"
+        fill="none" stroke="#FFC83D" stroke-width="88"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- the fountain-pen nib that just wrote it (tip at the end of the stroke) -->
+  <g transform="translate(626 462) rotate(42) scale(1.08)">
+    <!-- body -->
+    <path fill="#FFFFFF"
+          d="M 0 0
+             C -26 -66 -86 -146 -92 -226
+             L -92 -246 L -80 -258 L -80 -336
+             L 80 -336 L 80 -258 L 92 -246 L 92 -226
+             C 86 -146 26 -66 0 0 Z"/>
+    <!-- breather hole + slit, cut through to the ground -->
+    <circle cx="0" cy="-196" r="21" fill="#2348C9"/>
+    <rect x="-5.5" y="-180" width="11" height="122" rx="5.5" fill="#2348C9"/>
+    <!-- collar where the nib meets the pen -->
+    <rect x="-80" y="-336" width="160" height="28" fill="#C9D5FF"/>
+  </g>
+  </g>
+</svg>
