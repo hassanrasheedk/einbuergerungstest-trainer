@@ -17,7 +17,7 @@
    "credit": null,
    "topic": "Grundrechte & Verfassung",
    "en": {
-    "question": "In Germany, people are allowed to openly say something against the government because?",
+    "question": "In Germany, people are allowed to openly say something against the government because ...",
     "answers": [
      "freedom of religion applies here.",
      "people pay taxes.",
@@ -43,7 +43,7 @@
    "credit": null,
    "topic": "Familie, Bildung & Religion",
    "en": {
-    "question": "In Germany, parents can decide up to the age of 14 whether their child will attend school on?",
+    "question": "In Germany, parents can decide until their child turns 14 whether it takes part at school in ...",
     "answers": [
      "history lessons.",
      "religious education",
@@ -98,9 +98,9 @@
     "question": "Which law is one of the fundamental rights in Germany?",
     "answers": [
      "Possession of weapons",
-     "Club law",
+     "Right of the fist",
      "Freedom of opinion",
-     "Vigilantism."
+     "Vigilante justice"
     ],
     "explanation": "In Germany, fundamental rights are enshrined in the Basic Law and protect essential freedoms and rights of citizens. These fundamental rights guarantee, among other things, freedom of expression, freedom of assembly and equality before the law. Vigilante justice, gun ownership and the right of the fist are not recognized fundamental rights. Freedom of expression in particular is a fundamental human right, guaranteed in Article 5 of the Basic Law, which allows citizens to freely express and disseminate their views. This is essential for a democratic society and public discourse."
    }
@@ -173,7 +173,7 @@
    "credit": null,
    "topic": "Grundrechte & Verfassung",
    "en": {
-    "question": "Which right is one of the fundamental rights guaranteed by the German constitution? The right to",
+    "question": "Which right is one of the fundamental rights guaranteed by the German constitution? The right to ...",
     "answers": [
      "Freedom of religion and conscience",
      "Entertainment",
@@ -799,10 +799,10 @@
    "en": {
     "question": "The cooperation of parties to form a government is called in Germany ...",
     "answers": [
-     "Unit.",
+     "Unity.",
      "Coalition.",
      "Ministry.",
-     "Fraction."
+     "Parliamentary group."
     ],
     "explanation": "In Germany, a government is often formed by the cooperation of different political parties to form a stable majority in parliament. This is particularly relevant in the event of a close election result or in a multi-party system. Such cooperation is necessary to effectively implement laws and make policy decisions. Parties often have to make compromises and define common political goals. The term for this cooperation, which is often associated with negotiations on the distribution of portfolios and political agendas, is crucial for the functioning of democratic processes in the country."
    }
@@ -1087,7 +1087,7 @@
     "answers": [
      "the government",
      "Parliament",
-     "the dishes",
+     "the courts",
      "the police"
     ],
     "explanation": "In Germany, the legislative process follows certain procedures. New laws are typically proposed by the executive, i.e. the government, and then debated and passed in parliament, the Bundestag. The courts are responsible for reviewing and applying the laws, while the police monitor their implementation in everyday life. Parliament plays a crucial role as it is the only body authorized to officially adopt laws, which must be taken into account when choosing the correct answer to the question."
@@ -1632,7 +1632,7 @@
     "question": "What does not belong to the executive branch in Germany?",
     "answers": [
      "the police",
-     "the dishes",
+     "the courts",
      "the tax office",
      "the ministries"
     ],
@@ -2075,10 +2075,10 @@
     "answers": [
      "Regional appeal court",
      "District court",
-     "Federal constitutional court",
+     "Federal Constitutional Court",
      "Administrative tribunal"
     ],
-    "explanation": "The Basic Law forms the constitutional basic order of Germany. Its interpretation and interpretation are crucial for the protection of fundamental rights and the functioning of the state. Different courts have different areas of responsibility and jurisdiction. While administrative courts, higher regional courts and district courts deal with specific issues, a court is specifically responsible for interpreting the constitution and ensuring that it is observed. Understanding the role of this court is essential for the safe application of the law and the protection of civil rights in the country."
+    "explanation": "The Basic Law forms the constitutional basic order of Germany. Its interpretation is crucial for the protection of fundamental rights and the functioning of the state. Different courts have different areas of responsibility and jurisdiction. While administrative courts, higher regional courts and district courts deal with specific issues, a court is specifically responsible for interpreting the constitution and ensuring that it is observed. Understanding the role of this court is essential for the safe application of the law and the protection of civil rights in the country."
    }
   },
   {
@@ -2309,10 +2309,10 @@
     "answers": [
      "Association",
      "Elders",
-     "Fraction",
+     "Parliamentary group",
      "Opposition"
     ],
-    "explanation": "In Germany, political parties are represented in parliament by members of parliament who are organized in groups to bundle and effectively represent their interests and political goals. These groups are formed according to the principle of party affiliation. They play a crucial role in the internal organisation of parliament by coordinating the political programmes of their parties and influencing the formation of opinion in legislative processes. One of these possibilities is described by the term \"fraction\". The term describes the collective organization of members of parliament from the same party. This is important for the structure and influence of parties in parliament."
+    "explanation": "In Germany, political parties are represented in parliament by members of parliament who are organized in groups to bundle and effectively represent their interests and political goals. These groups are formed according to the principle of party affiliation. They play a crucial role in the internal organisation of parliament by coordinating the political programmes of their parties and influencing the formation of opinion in legislative processes. One of these possibilities is described by the term \"parliamentary group\" (Fraktion). The term describes the collective organization of members of parliament from the same party. This is important for the structure and influence of parties in parliament."
    }
   },
   {
@@ -4562,17 +4562,17 @@
     "1=Großbritannien, 2=Sowjetunion, 3=USA, 4=Frankreich",
     "1=Großbritannien, 2=USA, 3=Sowjetunion, 4=Frankreich"
    ],
-   "correct": 0,
+   "correct": 2,
    "image": "img_176.png",
    "credit": null,
    "topic": "Geschichte & Geografie",
    "en": {
     "question": "How were Germany's occupation zones distributed after 1945?",
     "answers": [
-     "1 = Great Britain, 2 = USA, 3 = Soviet Union, 4 = France",
      "1 = Great Britain, 2 = Soviet Union, 3 = France, 4 = USA",
-     "1 = Great Britain, 2 = Soviet Union, 3 = France, 4 = USA",
-     "1 = Great Britain, 2 = Soviet Union, 3 = France, 4 = USA"
+     "1 = Soviet Union, 2 = Great Britain, 3 = USA, 4 = France",
+     "1 = Great Britain, 2 = Soviet Union, 3 = USA, 4 = France",
+     "1 = Great Britain, 2 = USA, 3 = Soviet Union, 4 = France"
     ],
     "explanation": "After the end of the Second World War in 1945, Germany was divided into four occupation zones by the victorious Allied powers. These zones were distributed among Great Britain, the Soviet Union, the USA and France. Each of these powers controlled different parts of the country in order to administer and control it. This was part of the agreements reached during the Yalta and Potsdam conferences and laid the foundation for the later division of Germany into East and West. The exact distribution of the zones is important in order to understand the political and historical developments of the post-war period."
    }
@@ -4801,7 +4801,7 @@
    "credit": null,
    "topic": "Geschichte & Geografie",
    "en": {
-    "question": "What did the phrase \"Iron Curtain\" stand for? For the isolation..",
+    "question": "What did the phrase \"Iron Curtain\" stand for? For the isolation ...",
     "answers": [
      "of the Warsaw Pact against the West",
      "Northern Germany against Southern Germany",
@@ -5035,9 +5035,9 @@
    "credit": null,
    "topic": "Geschichte & Geografie",
    "en": {
-    "question": "On October 3, Germany celebrates the Day of the Germans ...",
+    "question": "On October 3, Germany celebrates the Day of German ...",
     "answers": [
-     "Unit.",
+     "Unity.",
      "Nation.",
      "States.",
      "Cities."

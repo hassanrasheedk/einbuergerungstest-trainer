@@ -45,6 +45,23 @@ def norm(s):
     return "".join(sorted(words))
 
 
+def norm_seq(s):
+    """Order-preserving normalisation: '1=A, 2=B' and '1=B, 2=A' stay different."""
+    s = unicodedata.normalize("NFC", s).lower()
+    return re.sub(r"[^a-z0-9äöüß]+", "", s)
+
+
+def match_index(options, target):
+    """Index of the option that is `target`. Word order first; the order-insensitive
+    word bag (for swapped gender pairs) only when word order gives no unique hit."""
+    for f in (norm_seq, norm):
+        hits = [i for i, o in enumerate(options) if f(o) == f(target)]
+        if len(hits) == 1:
+            return hits[0], True
+    sims = [SequenceMatcher(None, norm_seq(o), norm_seq(target)).ratio() for o in options]
+    return max(range(len(options)), key=lambda i: sims[i]), False
+
+
 def lines(doc):
     for pn, page in enumerate(doc):
         out = []
@@ -156,18 +173,18 @@ def main(pdf, dataset, out):
             as_ = SequenceMatcher(None, "|".join(sorted(map(norm, answers))), "|".join(aset)).ratio()
             return qs_ + as_
         best = max(pool, key=score)
-        sol_text = norm(best[best["solution"]])
-        sims = [SequenceMatcher(None, norm(a), sol_text).ratio() for a in answers]
-        exact = [i for i, a in enumerate(answers) if norm(a) == sol_text]
-        correct = exact[0] if len(exact) == 1 else max(range(4), key=lambda i: sims[i])
-        if score(best) < 1.8 or (sims[correct] < 0.9 and not exact):
-            problems.append((key, round(sims[correct], 2), question[:70], "| OFFICIAL:", answers[correct], "| KEY:", best[best["solution"]]))
+        correct, exact = match_index(answers, best[best["solution"]])
+        sim = SequenceMatcher(None, norm_seq(answers[correct]), norm_seq(best[best["solution"]])).ratio()
+        if score(best) < 1.8 or (sim < 0.9 and not exact):
+            problems.append((key, round(sim, 2), question[:70], "| OFFICIAL:", answers[correct], "| KEY:", best[best["solution"]]))
         en = best["translation"]["en"]
         # translation letters follow the dataset order; remap to official order
         letter_for = {}
         for k in "abcd":
-            i = max(range(4), key=lambda j: SequenceMatcher(None, norm(answers[j]), norm(best[k])).ratio())
+            i, _ = match_index(answers, best[k])
             letter_for[i] = k
+        if len(letter_for) != 4:
+            problems.append((key, "ambiguous EN mapping", question[:70]))
         image = render_image(doc, q, out, key.replace("-", "_"))
         result.append(dict(
             id=key,
