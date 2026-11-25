@@ -40,7 +40,7 @@ The official catalog is a 191-page PDF with no answers. This app turns it into s
 - **German first, English on tap.** Questions are shown in the official wording. An **EN** button reveals an English translation of the question and every answer, and a *Why?* panel explains the correct answer after you respond.
 - **Spaced repetition.** A small Leitner system (intervals 0/1/2/4/7 days). A question counts as *sicher* after two correct answers in a row; a wrong answer resets it.
 - **Exam fidelity.** Official numbering, answer order and all picture questions (coats of arms, flags, maps, ballot papers) rendered straight from the BAMF PDF.
-- **Private.** No account, no network, no analytics. Progress lives in a JSON file in the app's sandbox.
+- **Private.** No account and no analytics. Progress lives on the device; optional sync between phone and browser uses a random code, not an account.
 - Dark mode, Dynamic Type, VoiceOver labels on answer states, Reduce Motion respected.
 
 The bundled catalog contains the **300 general questions + the 10 questions for Nordrhein-Westfalen**. Other states are one line away (see below).
@@ -68,6 +68,17 @@ Apps signed with a free Apple ID expire after 7 days; run `xtool dev run` again 
 
 Five picture questions (55, 70, 181, 216, 235) use press photos credited to © Deutscher Bundestag and © Bundesregierung. They are not redistributed here. [`tools/fetch_photos.sh`](tools/fetch_photos.sh) downloads the official catalog from bamf.de and renders exactly those pictures into `Sources/EinbuergerungTrainer/Resources/` (git-ignored). Pass a local PDF path to skip the download. Without them the app still runs and shows a placeholder for those five questions.
 
+## Syncing phone and browser
+
+Progress, bookmarks, mock exams, today's plan and the test date can be kept in sync between the iPhone app and the web version:
+
+1. On one device open **Einstellungen → Synchronisieren → Sync-Code erstellen**.
+2. On the other device enter that 20-character code under **Mit Code verbinden**.
+
+After that both sync automatically when opened, a few seconds after you answer, and when you leave the app. There are no accounts: the code is the key, so anyone with it can see your progress (nothing personal is stored).
+
+The sync API is the same Cloudflare Worker that serves the web app ([`web/worker.js`](web/worker.js)), storing state in Workers KV under a SHA-256 hash of the code. The server merges what each device sends, so nothing is overwritten: per question the most recent answer wins, mock exams are combined, today's plan is shared, a test date you set beats a placeholder, and a reset on one device clears both.
+
 ## Web version
 
 `web/` is a dependency-free static version of the app (plain HTML, CSS and JavaScript) that shares `catalog.json` and the picture questions with the iOS app. Progress is stored in the browser's `localStorage`, so it stays on that one browser.
@@ -78,7 +89,7 @@ Five picture questions (55, 70, 181, 216, 235) use press photos credited to © D
 ```bash
 node web/build.mjs                          # builds web/dist
 python3 -m http.server 8765 -d web/dist     # preview locally
-cd web && npx wrangler deploy               # deploy to Cloudflare Workers (static assets)
+cd web && npx wrangler deploy               # deploy to Cloudflare Workers (static assets + sync API)
 ```
 
 ## Regenerating the question catalog
@@ -108,7 +119,7 @@ Sources/EinbuergerungTrainer/
   Model/      Catalog (bundled questions), Store (progress, plan, exams)
   UI/         Today, Practice, Exam, Catalog screens + shared components
   Resources/  catalog.json, picture questions (press photos generated locally)
-web/          static web version (src/, build.mjs, wrangler.jsonc)
+web/          static web version (src/, build.mjs) and sync API (worker.js, wrangler.jsonc)
 tools/        build_catalog.py, fetch_photos.sh
 Assets/       logo.svg, AppIcon.png, screenshots
 PRODUCT.md    product context · DESIGN.md design decisions

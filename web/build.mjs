@@ -3,6 +3,7 @@
 // the third-party press photos (credit "©"): those questions link to the BAMF PDF instead.
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,18 @@ for (const q of catalog.questions) {
   }
 }
 writeFileSync(join(dist, "catalog.json"), JSON.stringify(catalog));
+
+// Version the JS/CSS URLs so browsers pick up new deploys immediately.
+const hash = createHash("sha256")
+  .update(readFileSync(join(dist, "app.js"))).update(readFileSync(join(dist, "styles.css")))
+  .update(JSON.stringify(catalog)).digest("hex").slice(0, 10);
+const html = readFileSync(join(dist, "index.html"), "utf8")
+  .replace('href="styles.css"', `href="styles.css?v=${hash}"`)
+  .replace('src="app.js"', `src="app.js?v=${hash}"`);
+writeFileSync(join(dist, "index.html"), html);
+const app = readFileSync(join(dist, "app.js"), "utf8").replace('fetch("catalog.json")', `fetch("catalog.json?v=${hash}")`);
+writeFileSync(join(dist, "app.js"), app);
+writeFileSync(join(dist, "_headers"), "/\n  Cache-Control: no-cache\n/index.html\n  Cache-Control: no-cache\n");
 
 // Home-screen icon for iOS Safari.
 const icon = join(root, "Assets/AppIcon.png");

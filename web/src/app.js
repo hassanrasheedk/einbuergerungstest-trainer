@@ -33,7 +33,8 @@ const clock = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${Strin
 // ---------- persistence ----------
 function defaultState() {
   const d = addDays(startOfDay(), 28); d.setHours(9);
-  return { progress: {}, exams: [], plan: null, examDate: d.toISOString(), examDateConfirmed: false, showEnglish: false };
+  return { progress: {}, exams: [], plan: null, examDate: d.toISOString(), examDateConfirmed: false, showEnglish: false,
+    settingsUpdatedAt: 0, resetAt: 0, syncCode: null, lastSync: null };
 }
 function load() {
   try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) return { ...defaultState(), ...JSON.parse(raw) }; } catch {}
@@ -80,11 +81,13 @@ function record(q, chosen) {
   if (chosen === q.correct) { p.correct++; p.box = p.lastWrong ? 1 : Math.min(p.box + 1, INTERVALS.length - 1); p.lastWrong = false; }
   else { p.wrong++; p.box = 0; p.lastWrong = true; }
   p.due = addDays(startOfDay(), INTERVALS[p.box]).getTime();
+  p.updatedAt = Date.now();
   S.progress[q.id] = p;
   if (S.plan && planAll().includes(q.id) && !S.plan.done.includes(q.id)) S.plan.done.push(q.id);
   save();
+  scheduleSync();
 }
-function toggleBookmark(id) { const p = { ...prog(id) }; p.bookmarked = !p.bookmarked; S.progress[id] = p; save(); }
+function toggleBookmark(id) { const p = { ...prog(id) }; p.bookmarked = !p.bookmarked; p.updatedAt = Date.now(); S.progress[id] = p; save(); scheduleSync(); }
 
 function makeExam() {
   const gen = shuffle(Q.filter((q) => !q.state)).slice(0, EXAM.general).sort((a, b) => a.number - b.number);
@@ -430,7 +433,7 @@ function submitExam(confirmFirst = false) {
     if (a != null) { record(q, a); if (a === q.correct) correct++; else wrong.push(id); } else wrong.push(id);
   }
   s.result = { id: crypto.randomUUID?.() ?? String(Date.now()), date: new Date().toISOString(), correct, total: s.ids.length, duration: (Date.now() - s.startedAt) / 1000, wrongIds: wrong };
-  S.exams.unshift(s.result); save();
+  S.exams.unshift(s.result); save(); sync();
   renderSession();
 }
 function renderExamResult() {
@@ -580,7 +583,114 @@ document.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("hashchange", () => { if (session && session.kind === "exam" && !session.result) return; session = null; route(); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden && !session) { refreshPlan(); route(); } });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { sync({ keepalive: true }); return; }
+  if (!session) { refreshPlan(); route(); }
+  sync();
+});
+
+// ---------- sync ----------
+// Progress is merged on the server (see web/worker.js); both apps send their whole state.
+const SYNC_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const normalizeCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z2-7]/g, "");
+const prettyCode = (c) => c.match(/.{1,5}/g).join("-");
+let syncing = null, syncTimer = null, syncError = null;
+
+function newSyncCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(20));
+  return [...bytes].map((b) => SYNC_ALPHABET[b & 31]).join("");
+}
+function syncPayload() {
+  return { v: 1, progress: S.progress, exams: S.exams, plan: S.plan, examDate: S.examDate,
+    examDateConfirmed: S.examDateConfirmed, settingsUpdatedAt: S.settingsUpdatedAt || 0, resetAt: S.resetAt || 0 };
+}
+function applyMerged(m) {
+  S.progress = m.progress || {};
+  S.exams = m.exams || [];
+  if (m.plan && m.plan.day === dayKey(new Date())) S.plan = m.plan;
+  if (m.examDate) { S.examDate = m.examDate; S.examDateConfirmed = !!m.examDateConfirmed; }
+  S.settingsUpdatedAt = m.settingsUpdatedAt || 0;
+  S.resetAt = m.resetAt || 0;
+  S.lastSync = Date.now();
+  save();
+  refreshPlan();
+}
+function scheduleSync() {
+  if (!S.syncCode) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => sync(), 2500);
+}
+async function sync({ keepalive = false } = {}) {
+  if (!S?.syncCode || !Q.length) return;
+  if (syncing) return syncing;
+  clearTimeout(syncTimer);
+  syncing = (async () => {
+    try {
+      const res = await fetch(`/api/sync/${S.syncCode}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(syncPayload()), keepalive,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const merged = await res.json();
+      if (keepalive) return;
+      applyMerged(merged);
+      syncError = null;
+      // Refresh what is on screen, but never interrupt an answer in progress or typing.
+      const typing = ["INPUT", "SELECT"].includes(document.activeElement?.tagName);
+      if (!session && !typing && !$settings.open) route();
+    } catch (e) {
+      syncError = navigator.onLine === false ? "Offline" : "Synchronisierung fehlgeschlagen";
+    } finally {
+      syncing = null;
+      renderSyncStatus();
+    }
+  })();
+  return syncing;
+}
+function renderSyncStatus() {
+  const box = document.getElementById("sync-box");
+  if (!box) return;
+  if (!S.syncCode) {
+    box.innerHTML = `
+      <div class="row" style="cursor:default;display:block">
+        <p style="margin:0 0 10px">Halte Fortschritt zwischen iPhone-App und Browser gleich. Erstelle einen Sync-Code hier oder gib den Code von deinem anderen Gerät ein.</p>
+        <button type="button" class="btn btn-primary btn-block" id="sync-create">Sync-Code erstellen</button>
+      </div>
+      <div class="row" style="cursor:default;gap:10px">
+        <input id="sync-input" class="search" style="padding-left:14px;background-image:none;text-transform:uppercase" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Sync-Code eingeben">
+        <button type="button" class="btn btn-secondary" id="sync-join" style="min-height:44px">Verbinden</button>
+      </div>`;
+  } else {
+    const when = S.lastSync ? new Date(S.lastSync).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "noch nie";
+    box.innerHTML = `
+      <div class="row" style="cursor:default;display:block">
+        <span class="sub">Sync-Code (auf dem anderen Gerät eingeben)</span>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+          <code id="sync-code" style="font:600 17px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0.04em;user-select:all;flex:1">${prettyCode(S.syncCode)}</code>
+          <button type="button" class="text-btn" id="sync-copy">Kopieren</button>
+        </div>
+      </div>
+      <div class="row" style="cursor:default">
+        <span class="grow">${syncing ? "Synchronisiere …" : syncError ? `<span style="color:var(--red)">${esc(syncError)}</span>` : `Zuletzt synchronisiert: ${when}`}</span>
+        <button type="button" class="text-btn" id="sync-now" ${syncing ? "disabled" : ""}>Jetzt</button>
+      </div>
+      <button type="button" class="row danger" id="sync-leave" style="justify-content:center">Sync auf diesem Gerät beenden</button>`;
+  }
+}
+document.getElementById("sync-box")?.addEventListener("click", async (e) => {
+  const id = e.target.closest("button")?.id;
+  if (id === "sync-create") { S.syncCode = newSyncCode(); save(); renderSyncStatus(); await sync(); }
+  if (id === "sync-join") {
+    const code = normalizeCode(document.getElementById("sync-input").value);
+    if (code.length !== 20) { syncError = "Der Code hat 20 Zeichen."; renderSyncStatus(); syncError = null; return; }
+    S.syncCode = code; save(); renderSyncStatus(); await sync();
+  }
+  if (id === "sync-now") await sync();
+  if (id === "sync-copy") { try { await navigator.clipboard.writeText(prettyCode(S.syncCode)); e.target.textContent = "Kopiert"; } catch {} }
+  if (id === "sync-leave" && confirm("Sync auf diesem Gerät beenden? Dein Fortschritt bleibt hier gespeichert.")) {
+    S.syncCode = null; S.lastSync = null; save(); renderSyncStatus();
+  }
+});
 
 // ---------- settings ----------
 const $settings = document.getElementById("settings");
@@ -588,6 +698,7 @@ function openSettings() {
   const d = new Date(S.examDate);
   document.getElementById("exam-date").value = dayKey(d);
   document.getElementById("always-en").checked = S.showEnglish;
+  renderSyncStatus();
   $settings.showModal();
 }
 document.getElementById("open-settings").addEventListener("click", openSettings);
@@ -595,13 +706,14 @@ document.getElementById("exam-date").addEventListener("change", (e) => {
   if (!e.target.value) return;
   const [y, m, day] = e.target.value.split("-").map(Number);
   S.examDate = new Date(y, m - 1, day, 9).toISOString();
-  S.examDateConfirmed = true; S.plan = null; save(); refreshPlan(true);
+  S.examDateConfirmed = true; S.settingsUpdatedAt = Date.now(); S.plan = null; save(); refreshPlan(true); sync();
 });
 document.getElementById("always-en").addEventListener("change", (e) => { S.showEnglish = e.target.checked; save(); });
 document.getElementById("reset").addEventListener("click", () => {
   if (!confirm("Gesamten Fortschritt und alle Probetests löschen?")) return;
-  const keep = { examDate: S.examDate, examDateConfirmed: S.examDateConfirmed, showEnglish: S.showEnglish };
-  S = { ...defaultState(), ...keep }; save(); refreshPlan(true);
+  const keep = { examDate: S.examDate, examDateConfirmed: S.examDateConfirmed, showEnglish: S.showEnglish,
+    settingsUpdatedAt: S.settingsUpdatedAt, syncCode: S.syncCode, lastSync: S.lastSync };
+  S = { ...defaultState(), ...keep, resetAt: Date.now() }; save(); refreshPlan(true); sync();
 });
 $settings.addEventListener("close", () => { if (session) rerenderQuestion(); else route(); });
 $settings.addEventListener("click", (e) => { if (e.target === $settings) $settings.close(); });
@@ -620,4 +732,5 @@ $settings.addEventListener("click", (e) => { if (e.target === $settings) $settin
   byId = new Map(Q.map((q) => [q.id, q]));
   refreshPlan();
   route();
+  sync();
 })();
