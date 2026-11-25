@@ -15,3 +15,6 @@ DerivedData/
 /Sources/EinbuergerungTrainer/Resources/img_181.png
 /Sources/EinbuergerungTrainer/Resources/img_216.png
 /Sources/EinbuergerungTrainer/Resources/img_235.png
+web/dist/
+.wrangler/
+web/.wrangler/

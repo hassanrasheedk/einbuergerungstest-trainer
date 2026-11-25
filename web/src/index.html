@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Einbürgerungstest Trainer</title>
+  <meta name="description" content="Alle Fragen des Einbürgerungstests (BAMF-Gesamtfragenkatalog, NRW) üben: Tagesplan, Probetest, Katalog. Offline im Browser, ohne Konto.">
+  <meta name="theme-color" content="#2348C9">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/heute" aria-label="Einbürgerungstest Trainer, Startseite">
+        <img src="logo.svg" alt="" width="28" height="28">
+        <span>Einbürgerung</span>
+      </a>
+      <nav class="tabs" aria-label="Bereiche">
+        <a href="#/heute" data-tab="heute">Heute</a>
+        <a href="#/ueben" data-tab="ueben">Üben</a>
+        <a href="#/pruefung" data-tab="pruefung">Prüfung</a>
+        <a href="#/katalog" data-tab="katalog">Katalog</a>
+      </nav>
+      <button class="icon-btn" id="open-settings" aria-label="Einstellungen" title="Einstellungen">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form method="dialog" class="sheet">
+      <div class="sheet-head">
+        <h2 id="settings-title">Einstellungen</h2>
+        <button class="text-btn" value="close">Fertig</button>
+      </div>
+      <section class="group">
+        <label class="row">
+          <span>Testtermin</span>
+          <input type="date" id="exam-date" required>
+        </label>
+      </section>
+      <p class="footnote">Der Tagesplan verteilt die neuen Fragen so, dass du 2 Tage vor dem Test alle kennst.</p>
+      <section class="group">
+        <label class="row">
+          <span>Englisch immer zeigen</span>
+          <input type="checkbox" id="always-en" class="switch">
+        </label>
+      </section>
+      <p class="footnote">Sonst blendest du die Übersetzung mit „EN“ (oder Taste E) bei jeder Frage ein.</p>
+      <section class="group">
+        <button type="button" class="row danger" id="reset">Fortschritt zurücksetzen</button>
+      </section>
+      <p class="footnote">Dein Fortschritt wird nur in diesem Browser gespeichert.</p>
+      <h3 class="section-label">Quellen</h3>
+      <p class="footnote sources">Fragen, Antworten und Bilder: Gesamtfragenkatalog zum Test „Leben in Deutschland“ und zum „Einbürgerungstest“, Bundesamt für Migration und Flüchtlinge, Stand 07.05.2025. Lösungen, Übersetzungen und Erklärungen: <a href="https://github.com/bitesinbyte/leben-in-deutschland" target="_blank" rel="noopener">bitesinbyte/leben-in-deutschland</a> (MIT). Inoffizielle Lernhilfe, nicht vom BAMF. <a href="https://github.com/hassanrasheedk/einbuergerungstest-trainer" target="_blank" rel="noopener">Quellcode</a>.</p>
+    </form>
+  </dialog>
+
+  <noscript><p class="noscript">Diese Lernhilfe braucht JavaScript.</p></noscript>
+  <script src="app.js" type="module"></script>
+</body>
+</html>
