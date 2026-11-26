@@ -101,6 +101,7 @@ final class Store {
     private var resetAt: Double = 0
     private var applyingRemote = false
     private var syncTask: Task<Void, Never>?
+    private var syncAgain = false
 
     /// Days of slack kept before the test for pure review.
     static let bufferDays = 2
@@ -174,7 +175,7 @@ final class Store {
     /// Builds today's plan once per day: due reviews + an even share of unseen questions.
     func refreshPlan() {
         let today = calendar.startOfDay(for: .now)
-        if let plan, calendar.isDate(plan.day, inSameDayAs: today) { return }
+        if let plan, calendar.isDate(plan.day, inSameDayAs: today) { prunePlan(); return }
 
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let reviews = Catalog.all
@@ -197,6 +198,28 @@ final class Store {
         let newIDs = unseen.prefix(newCount).map(\.id)
 
         plan = DailyPlan(day: today, newIDs: Array(newIDs), reviewIDs: Array(reviews))
+        save()
+    }
+
+    /// Today's plan can come from the other device, built from an older copy of the progress.
+    /// Drops questions that were already learned before today (or are no longer due) and tops
+    /// the new questions back up, so nothing known shows up again as "new".
+    private func prunePlan() {
+        guard var p = plan else { return }
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now)) ?? .now
+        let target = p.newIDs.count
+        p.newIDs = p.newIDs.filter { p.doneIDs.contains($0) || progress(for: $0).seen == 0 }
+        p.reviewIDs = p.reviewIDs.filter { id in
+            if p.doneIDs.contains(id) { return true }
+            let q = progress(for: id)
+            return q.seen > 0 && (q.lastWasWrong || (q.due ?? .distantFuture) < endOfToday)
+        }
+        if p.newIDs.count < target {
+            let inPlan = Set(p.allIDs)
+            p.newIDs += unseen.map(\.id).filter { !inPlan.contains($0) }.prefix(target - p.newIDs.count)
+        }
+        guard p.newIDs != plan?.newIDs || p.reviewIDs != plan?.reviewIDs else { return }
+        plan = p
         save()
     }
 
@@ -311,9 +334,14 @@ final class Store {
     }
 
     func syncNow() async {
-        guard let code = syncCode, !isSyncing else { return }
+        guard let code = syncCode else { return }
+        // An answer given while a request is running must not be dropped: sync again afterwards.
+        if isSyncing { syncAgain = true; return }
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            if syncAgain { syncAgain = false; scheduleSync(after: 0.5) }
+        }
         do {
             var request = URLRequest(url: Store.syncURL.appendingPathComponent(code))
             request.httpMethod = "POST"
@@ -356,18 +384,37 @@ final class Store {
     private func apply(_ m: SyncState) {
         applyingRemote = true
         defer { applyingRemote = false }
-        progress = m.progress.mapValues { p in
+        // Answers given while the request was in flight are newer than the server's copy: keep them.
+        let remoteResetAt = Date(timeIntervalSince1970: (m.resetAt ?? 0) / 1000)
+        var localNewer = false
+        var merged = m.progress.mapValues { p in
             QuestionProgress(box: p.box, seen: p.seen, correctCount: p.correct, wrongCount: p.wrong,
                              lastWasWrong: p.lastWrong, due: p.due.map { Date(timeIntervalSince1970: $0 / 1000) },
                              bookmarked: p.bookmarked,
                              updatedAt: p.updatedAt > 0 ? Date(timeIntervalSince1970: p.updatedAt / 1000) : nil)
         }
-        exams = m.exams.map { e in
+        for (id, local) in progress {
+            let localAt = local.updatedAt ?? .distantPast
+            if localAt > max(merged[id]?.updatedAt ?? .distantPast, remoteResetAt) {
+                merged[id] = local
+                localNewer = true
+            }
+        }
+        progress = merged
+        var remoteExams = m.exams.map { e in
             ExamResult(id: UUID(uuidString: e.id) ?? UUID(), date: SyncState.date(e.date) ?? .now,
                        correct: e.correct, total: e.total, duration: e.duration, wrongIDs: e.wrongIds)
         }
+        let remoteExamIDs = Set(remoteExams.map(\.id))
+        for e in exams where !remoteExamIDs.contains(e.id) && e.date > remoteResetAt {
+            remoteExams.append(e)
+            localNewer = true
+        }
+        exams = remoteExams.sorted { $0.date > $1.date }
         if let p = m.plan, p.day == dayKey(.now) {
-            plan = DailyPlan(day: calendar.startOfDay(for: .now), newIDs: p.newIds, reviewIDs: p.reviewIds, doneIDs: Set(p.done))
+            var done = Set(p.done)
+            if let local = plan, calendar.isDateInToday(local.day) { done.formUnion(local.doneIDs) }
+            plan = DailyPlan(day: calendar.startOfDay(for: .now), newIDs: p.newIds, reviewIDs: p.reviewIds, doneIDs: done)
         }
         if let s = m.examDate, let d = SyncState.date(s) {
             examDate = d
@@ -378,6 +425,7 @@ final class Store {
         lastSync = .now
         save()
         refreshPlan()
+        if localNewer { syncAgain = true }
     }
 
     private func dayKey(_ d: Date) -> String {

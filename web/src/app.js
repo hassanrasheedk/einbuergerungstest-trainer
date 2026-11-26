@@ -60,7 +60,7 @@ const unseen = () => Q.filter((q) => !prog(q.id).seen);
 
 function refreshPlan(force = false) {
   const today = dayKey(new Date());
-  if (!force && S.plan && S.plan.day === today) return;
+  if (!force && S.plan && S.plan.day === today) { prunePlan(); return; }
   const end = addDays(startOfDay(), 1).getTime();
   const reviews = Q.filter((q) => { const p = prog(q.id); return p.seen && (p.lastWrong || (p.due ?? Infinity) < end); })
     .sort((a, b) => { const pa = prog(a.id), pb = prog(b.id); if (pa.lastWrong !== pb.lastWrong) return pa.lastWrong ? -1 : 1; return (pa.due ?? 0) - (pb.due ?? 0); })
@@ -70,6 +70,24 @@ function refreshPlan(force = false) {
   const share = Math.ceil(fresh.length / days);
   const n = Math.min(fresh.length, Math.max(share, fresh.length ? 15 : 0));
   S.plan = { day: today, newIds: fresh.slice(0, n).map((q) => q.id), reviewIds: reviews, done: [] };
+  save();
+}
+// Today's plan can come from the other device, built from an older copy of the progress.
+// Drop questions learned before today (or no longer due) and top the new ones back up,
+// so nothing known shows up again as "new".
+function prunePlan() {
+  const p = S.plan; if (!p) return;
+  const end = addDays(startOfDay(), 1).getTime();
+  const done = new Set(p.done);
+  const target = p.newIds.length;
+  const newIds = p.newIds.filter((id) => done.has(id) || !prog(id).seen);
+  const reviewIds = p.reviewIds.filter((id) => { if (done.has(id)) return true; const q = prog(id); return q.seen && (q.lastWrong || (q.due ?? Infinity) < end); });
+  if (newIds.length < target) {
+    const inPlan = new Set([...reviewIds, ...newIds]);
+    newIds.push(...unseen().map((q) => q.id).filter((id) => !inPlan.has(id)).slice(0, target - newIds.length));
+  }
+  if (newIds.join() === p.newIds.join() && reviewIds.join() === p.reviewIds.join()) return;
+  S.plan = { ...p, newIds, reviewIds };
   save();
 }
 const planAll = () => (S.plan ? [...S.plan.reviewIds, ...S.plan.newIds] : []);
@@ -594,7 +612,7 @@ document.addEventListener("visibilitychange", () => {
 const SYNC_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const normalizeCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z2-7]/g, "");
 const prettyCode = (c) => c.match(/.{1,5}/g).join("-");
-let syncing = null, syncTimer = null, syncError = null;
+let syncing = null, syncTimer = null, syncError = null, syncAgain = false;
 
 function newSyncCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(20));
@@ -605,15 +623,30 @@ function syncPayload() {
     examDateConfirmed: S.examDateConfirmed, settingsUpdatedAt: S.settingsUpdatedAt || 0, resetAt: S.resetAt || 0 };
 }
 function applyMerged(m) {
-  S.progress = m.progress || {};
-  S.exams = m.exams || [];
-  if (m.plan && m.plan.day === dayKey(new Date())) S.plan = m.plan;
+  // Answers given while the request was in flight are newer than the server's copy: keep them.
+  const resetAt = m.resetAt || 0;
+  let localNewer = false;
+  const progress = m.progress || {};
+  for (const [id, p] of Object.entries(S.progress)) {
+    if ((p.updatedAt || 0) > Math.max(progress[id]?.updatedAt || 0, resetAt)) { progress[id] = p; localNewer = true; }
+  }
+  S.progress = progress;
+  const exams = m.exams || [];
+  const examIds = new Set(exams.map((e) => e.id));
+  for (const e of S.exams) if (!examIds.has(e.id) && Date.parse(e.date) > resetAt) { exams.push(e); localNewer = true; }
+  S.exams = exams.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  const today = dayKey(new Date());
+  if (m.plan && m.plan.day === today) {
+    const localDone = S.plan && S.plan.day === today ? S.plan.done : [];
+    S.plan = { ...m.plan, done: [...new Set([...m.plan.done, ...localDone])] };
+  }
   if (m.examDate) { S.examDate = m.examDate; S.examDateConfirmed = !!m.examDateConfirmed; }
   S.settingsUpdatedAt = m.settingsUpdatedAt || 0;
   S.resetAt = m.resetAt || 0;
   S.lastSync = Date.now();
   save();
   refreshPlan();
+  if (localNewer) syncAgain = true;
 }
 function scheduleSync() {
   if (!S.syncCode) return;
@@ -622,7 +655,8 @@ function scheduleSync() {
 }
 async function sync({ keepalive = false } = {}) {
   if (!S?.syncCode || !Q.length) return;
-  if (syncing) return syncing;
+  // An answer given while a request is running must not be dropped: sync again afterwards.
+  if (syncing) { if (!keepalive) syncAgain = true; return syncing; }
   clearTimeout(syncTimer);
   syncing = (async () => {
     try {
@@ -643,6 +677,7 @@ async function sync({ keepalive = false } = {}) {
     } finally {
       syncing = null;
       renderSyncStatus();
+      if (syncAgain) { syncAgain = false; scheduleSync(); }
     }
   })();
   return syncing;
