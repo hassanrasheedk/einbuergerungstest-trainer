@@ -101,6 +101,9 @@ final class Store {
     private var resetAt: Double = 0
     private var applyingRemote = false
     private var syncTask: Task<Void, Never>?
+    /// Answers and bookmarks since the last successful sync. They are sent at checkpoints
+    /// (end of a practice round, app to background, next app start), not one by one.
+    private var hasUnsyncedChanges = false
     private var syncAgain = false
 
     /// Days of slack kept before the test for pure review.
@@ -245,7 +248,7 @@ final class Store {
             plan?.doneIDs.insert(question.id)
         }
         save()
-        scheduleSync()
+        hasUnsyncedChanges = true
     }
 
     func toggleBookmark(_ id: String) {
@@ -254,7 +257,7 @@ final class Store {
         p.updatedAt = .now
         progress[id] = p
         save()
-        scheduleSync()
+        hasUnsyncedChanges = true
     }
 
     func addExam(_ result: ExamResult) {
@@ -322,8 +325,8 @@ final class Store {
         save()
     }
 
-    /// Debounced so a run of answers becomes one request.
-    func scheduleSync(after seconds: Double = 2.5) {
+    /// For settings changes, exams and pairing, which are rare and should reach the other device soon.
+    func scheduleSync(after seconds: Double = 0) {
         guard syncCode != nil else { return }
         syncTask?.cancel()
         syncTask = Task { [weak self] in
@@ -333,14 +336,21 @@ final class Store {
         }
     }
 
+    /// Checkpoint: end of a practice round or app going to the background. Only syncs if something changed.
+    func syncIfNeeded() async {
+        guard hasUnsyncedChanges else { return }
+        await syncNow()
+    }
+
     func syncNow() async {
         guard let code = syncCode else { return }
-        // An answer given while a request is running must not be dropped: sync again afterwards.
+        // A checkpoint reached while a request is running is handled once that request is done.
         if isSyncing { syncAgain = true; return }
         isSyncing = true
+        hasUnsyncedChanges = false
         defer {
             isSyncing = false
-            if syncAgain { syncAgain = false; scheduleSync(after: 0.5) }
+            if syncAgain { syncAgain = false; if hasUnsyncedChanges { scheduleSync() } }
         }
         do {
             var request = URLRequest(url: Store.syncURL.appendingPathComponent(code))
@@ -355,7 +365,9 @@ final class Store {
             apply(merged)
             syncError = nil
         } catch is CancellationError {
+            hasUnsyncedChanges = true
         } catch {
+            hasUnsyncedChanges = true
             syncError = (error as? URLError)?.code == .notConnectedToInternet ? "Offline" : "Synchronisierung fehlgeschlagen"
         }
     }
@@ -385,6 +397,9 @@ final class Store {
         applyingRemote = true
         defer { applyingRemote = false }
         // Answers given while the request was in flight are newer than the server's copy: keep them.
+        // Compare in whole milliseconds: a Date that went through the server can come back a
+        // fraction of a millisecond off, which would make local entries look newer on every sync.
+        func ms(_ d: Date?) -> Int64 { Int64(((d?.timeIntervalSince1970 ?? 0) * 1000).rounded()) }
         let remoteResetAt = Date(timeIntervalSince1970: (m.resetAt ?? 0) / 1000)
         var localNewer = false
         var merged = m.progress.mapValues { p in
@@ -394,8 +409,7 @@ final class Store {
                              updatedAt: p.updatedAt > 0 ? Date(timeIntervalSince1970: p.updatedAt / 1000) : nil)
         }
         for (id, local) in progress {
-            let localAt = local.updatedAt ?? .distantPast
-            if localAt > max(merged[id]?.updatedAt ?? .distantPast, remoteResetAt) {
+            if ms(local.updatedAt) > max(ms(merged[id]?.updatedAt), ms(remoteResetAt)) {
                 merged[id] = local
                 localNewer = true
             }
@@ -406,7 +420,7 @@ final class Store {
                        correct: e.correct, total: e.total, duration: e.duration, wrongIDs: e.wrongIds)
         }
         let remoteExamIDs = Set(remoteExams.map(\.id))
-        for e in exams where !remoteExamIDs.contains(e.id) && e.date > remoteResetAt {
+        for e in exams where !remoteExamIDs.contains(e.id) && ms(e.date) > ms(remoteResetAt) {
             remoteExams.append(e)
             localNewer = true
         }
@@ -425,7 +439,7 @@ final class Store {
         lastSync = .now
         save()
         refreshPlan()
-        if localNewer { syncAgain = true }
+        if localNewer { hasUnsyncedChanges = true }
     }
 
     private func dayKey(_ d: Date) -> String {

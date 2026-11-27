@@ -32,11 +32,22 @@ export default {
     const key = `sync:${await sha256(code)}`;
     const stored = sanitize((await env.SYNC.get(key, "json")) || {});
     const merged = merge(stored, incoming);
+    // KV writes are the scarce resource (1,000/day on the free plan): only write real changes.
+    if (canonical(merged) !== canonical(stored)) await env.SYNC.put(key, JSON.stringify(merged));
     merged.serverTime = Date.now();
-    await env.SYNC.put(key, JSON.stringify(merged));
     return json(merged);
   },
 };
+
+/** JSON with sorted keys and sorted id lists, so equal states compare equal. */
+export function canonical(v) {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (v && typeof v === "object") {
+    return `{${Object.keys(v).filter((k) => k !== "serverTime").sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(k === "done" ? [...v[k]].sort() : v[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
 
 export function normalizeCode(s) {
   return String(s).toUpperCase().replace(/[^A-Z2-7]/g, "");

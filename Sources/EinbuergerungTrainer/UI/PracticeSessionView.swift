@@ -36,6 +36,7 @@ struct PracticeSessionView: View {
             }
         }
         .onAppear { if queue.isEmpty { queue = initial } }
+        .onDisappear { Task { await store.syncIfNeeded() } }   // end of a round is a sync checkpoint
     }
 
     private var question: some View {

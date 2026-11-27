@@ -103,9 +103,9 @@ function record(q, chosen) {
   S.progress[q.id] = p;
   if (S.plan && planAll().includes(q.id) && !S.plan.done.includes(q.id)) S.plan.done.push(q.id);
   save();
-  scheduleSync();
+  unsynced = true;   // sent at the next checkpoint, not per question
 }
-function toggleBookmark(id) { const p = { ...prog(id) }; p.bookmarked = !p.bookmarked; p.updatedAt = Date.now(); S.progress[id] = p; save(); scheduleSync(); }
+function toggleBookmark(id) { const p = { ...prog(id) }; p.bookmarked = !p.bookmarked; p.updatedAt = Date.now(); S.progress[id] = p; save(); unsynced = true; }
 
 function makeExam() {
   const gen = shuffle(Q.filter((q) => !q.state)).slice(0, EXAM.general).sort((a, b) => a.number - b.number);
@@ -518,7 +518,7 @@ function rerenderQuestion() {
   } else route();
 }
 
-function endSession() { session = null; clearInterval(timerHandle); route(); }
+function endSession() { session = null; clearInterval(timerHandle); route(); if (unsynced) sync(); }   // end of a round is a checkpoint
 
 $main.addEventListener("click", (e) => {
   const img = e.target.closest("[data-zoom]"); if (img) return zoomDialog(img.src, img.alt);
@@ -602,9 +602,11 @@ document.addEventListener("keydown", (e) => {
 
 window.addEventListener("hashchange", () => { if (session && session.kind === "exam" && !session.result) return; session = null; route(); });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { sync({ keepalive: true }); return; }
+  // Checkpoints (Page Lifecycle: "hidden" is the last reliable moment to save): send changes when
+  // the tab is hidden or closed, fetch the other device's progress when it comes back.
+  if (document.hidden) { if (unsynced) sync({ keepalive: true }); return; }
   if (!session) { refreshPlan(); route(); }
-  sync();
+  if (unsynced || Date.now() - (S.lastSync || 0) > 60000) sync();
 });
 
 // ---------- sync ----------
@@ -612,7 +614,7 @@ document.addEventListener("visibilitychange", () => {
 const SYNC_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const normalizeCode = (c) => String(c || "").toUpperCase().replace(/[^A-Z2-7]/g, "");
 const prettyCode = (c) => c.match(/.{1,5}/g).join("-");
-let syncing = null, syncTimer = null, syncError = null, syncAgain = false;
+let syncing = null, syncError = null, syncAgain = false, unsynced = false;
 
 function newSyncCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(20));
@@ -646,23 +648,20 @@ function applyMerged(m) {
   S.lastSync = Date.now();
   save();
   refreshPlan();
-  if (localNewer) syncAgain = true;
-}
-function scheduleSync() {
-  if (!S.syncCode) return;
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => sync(), 2500);
+  if (localNewer) unsynced = true;
 }
 async function sync({ keepalive = false } = {}) {
   if (!S?.syncCode || !Q.length) return;
   // An answer given while a request is running must not be dropped: sync again afterwards.
-  if (syncing) { if (!keepalive) syncAgain = true; return syncing; }
-  clearTimeout(syncTimer);
+  if (syncing) { syncAgain = true; return syncing; }
+  const body = JSON.stringify(syncPayload());
+  unsynced = false;
   syncing = (async () => {
     try {
       const res = await fetch(`/api/sync/${S.syncCode}`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify(syncPayload()), keepalive,
+        // keepalive lets the request outlive the tab, but browsers cap its body at 64 KB.
+        body, keepalive: keepalive && body.length < 60000,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const merged = await res.json();
@@ -673,11 +672,12 @@ async function sync({ keepalive = false } = {}) {
       const typing = ["INPUT", "SELECT"].includes(document.activeElement?.tagName);
       if (!session && !typing && !$settings.open) route();
     } catch (e) {
+      unsynced = true;
       syncError = navigator.onLine === false ? "Offline" : "Synchronisierung fehlgeschlagen";
     } finally {
       syncing = null;
       renderSyncStatus();
-      if (syncAgain) { syncAgain = false; scheduleSync(); }
+      if (syncAgain) { syncAgain = false; if (unsynced) sync(); }
     }
   })();
   return syncing;
